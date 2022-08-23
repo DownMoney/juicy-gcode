@@ -1,4 +1,6 @@
 resolver: lts-19.20
 allow-newer: true
 
+extra-deps:
+  - gcodehs-0.1.2.0@sha256:0cc00e6e68cfdbfcff05262ee95bfc594ae6a402d9729881230a62fb34f3e607,3273
 

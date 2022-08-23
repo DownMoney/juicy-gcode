@@ -14,6 +14,9 @@ import SVGExt
 import qualified CircularArc as CA
 import qualified BiArc as BA
 import qualified CubicBezier as B
+import Data.GCode.RS274 ( rapid, move, arcCW, arcCCW)
+import Data.GCode.Generate ( xy, ij, z, feed )
+import Data.GCode.Types ( (&), GCode)
 
 mapTuple :: (a -> b) -> (a, a) -> (b, b)
 mapTuple f (a1, a2) = (f a1, f a2)
@@ -64,31 +67,65 @@ docTransform dpi doc = multiply mirrorTransform (viewBoxTransform $ SVG._viewBox
 
         (w, h) = documentSize dpi doc
 
-renderDoc :: Bool -> Int -> Double -> SVG.Document -> [GCodeOp]
+dd :: Int -> Double
+dd = fromIntegral
+
+mm :: Double -> Int -> Double
+mm px dpi = (px * 2.54 * 10) / dd dpi
+
+mmP :: Point -> Int -> Point
+mmP (x,y) dpi = (mm x dpi, mm y dpi)
+
+toolOn :: GCode
+toolOn = [rapid & z (-0.125) & feed 2200.0]
+
+toolOff :: GCode
+toolOff = [rapid & z 5.000]
+
+feedrate :: Double
+feedrate = 13000.0
+
+renderDoc :: Bool -> Int -> Double -> SVG.Document -> GCode
 renderDoc generateBezier dpi resolution doc
     = stage2 $ renderTrees (docTransform dpi doc) (SVG._elements doc)
     where
         pxresolution = fromIntegral dpi / 2.45 / 10 * resolution
 
         -- TODO: make it tail recursive
-        stage2 :: [DrawOp] -> [GCodeOp]
-        stage2 dops = convert dops (Linear.V2 0 0)
+        stage2 :: [DrawOp] -> GCode
+        stage2 dops = convert dops (Linear.V2 0 0) True
             where
-                convert [] _ = []
-                convert (DMoveTo p:ds) _ = GMoveTo p : convert ds (fromPoint p)
-                convert (DLineTo p:ds) _ = GLineTo p : convert ds (fromPoint p)
-                convert (DBezierTo c1 c2 p2:ds) cp
+                convert [] _ _ = []
+                convert (DMoveTo p:ds) _ False = (rapid & uncurry xy (mmP p dpi) & feed feedrate) : convert ds (fromPoint p) False
+                convert (DMoveTo p:ds) _ True = toolOff ++ [rapid & uncurry xy (mmP p dpi) & feed feedrate] ++ convert ds (fromPoint p) False
+                convert gs cp False = toolOn ++ convert gs cp True
+                convert (DLineTo p:ds) _ True = move & uncurry xy (mmP p dpi) & feed feedrate : convert ds (fromPoint p) True
+                convert (DBezierTo c1 c2 p2:ds) cp _
                     | generateBezier
-                        = GBezierTo c1 c2 p2 : convert ds (fromPoint p2)
+                        = error "TODO: Bezier curves are undefined"
+                        -- = g <#> 5 & ij 1.0 2.0 & xy 3.0 4.0  : convert ds (fromPoint p2) True
+                        -- = GBezierTo c1 c2 p2 : convert ds (fromPoint p2)
                     | otherwise
-                        = concatMap biarc2garc biarcs ++ convert ds (fromPoint p2)
+                        = concatMap biarc2garc biarcs ++ convert ds (fromPoint p2) True
                     where
                         biarcs = bezier2biarc (B.CubicBezier cp (fromPoint c1) (fromPoint c2) (fromPoint p2)) pxresolution
                         biarc2garc (Left biarc)
                             = [arc2garc (BA._a1 biarc), arc2garc (BA._a2 biarc)]
                         biarc2garc (Right (Linear.V2 x y))
-                            = [GLineTo (x,y)]
-                        arc2garc arc = GArcTo (toPoint (CA._c arc)) (toPoint (CA._p2 arc)) (CA.isClockwise arc)
+                            = [move & xy x y]
+                        arc2garc arc
+                            | CA.isClockwise arc = arcCW & uncurry xy centerPoint & uncurry ij endPoint & feed feedrate
+                            | otherwise = arcCCW & uncurry xy centerPoint & uncurry ij endPoint & feed feedrate
+                            where
+                                (cx, cy) = toPoint cp
+                                (ox, oy) = mmP (toPoint (CA._c arc)) dpi
+                                centerPoint = mmP (toPoint (CA._p2 arc)) dpi
+
+                                i = ox - cx
+                                j = oy - cy
+
+                                endPoint = (i, j)
+
 
         renderPathCommands :: Point -> Point -> Maybe Point -> [SVG.PathCommand] -> [DrawOp]
         renderPathCommands _ currentp _ (SVG.MoveTo origin (p:ps):ds)
