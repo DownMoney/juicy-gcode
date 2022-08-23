@@ -12,6 +12,7 @@ module Transformation ( TransformationMatrix
 import qualified Graphics.Svg as SVG
 import Data.Matrix as M
 import Types
+import Data.Maybe ( fromMaybe )
 
 type TransformationMatrix = Matrix Double
 
@@ -28,7 +29,7 @@ scaleTransform :: Double -> Double -> TransformationMatrix
 scaleTransform sx sy = fromElements [sx, 0, 0, sy, 0, 0]
 
 multiply :: TransformationMatrix -> TransformationMatrix -> TransformationMatrix
-multiply a b = multStd a b
+multiply = multStd
 
 fromElements :: [Double] -> TransformationMatrix
 fromElements [a,b,c,d,e,f] = fromList 3 3 [a,c,e,b,d,f,0,0,1]
@@ -55,12 +56,12 @@ radiansPerDegree = pi / 180.0
 applyTransformation :: Matrix Double -> SVG.Transformation -> Matrix Double
 applyTransformation m (SVG.TransformMatrix a b c d e f) = multStd m (fromElements [a,b,c,d,e,f])
 applyTransformation m (SVG.Translate x y) = multStd m (fromElements [1,0,0,1,x,y])
-applyTransformation m (SVG.Scale sx mbSy) = multStd m (fromElements [sx,0,0,maybe sx id mbSy,0,0])
+applyTransformation m (SVG.Scale sx mbSy) = multStd m (fromElements [sx,0,0,fromMaybe sx mbSy,0,0])
 applyTransformation m (SVG.Rotate a Nothing)
-    = multStd m (fromElements [cos(r),sin(r),-sin(r),cos(r),0,0])
+    = multStd m (fromElements [cos r,sin r,-sin r,cos r,0,0])
     where
         r = a * radiansPerDegree
 applyTransformation m (SVG.Rotate a (Just (x, y))) = applyTransformations m (Just [SVG.Translate x y , SVG.Rotate a Nothing , SVG.Translate (-x) (-y)])
 applyTransformation m (SVG.SkewX a) = multStd m (fromElements [1,0,tan(a*radiansPerDegree),1,0,0])
 applyTransformation m (SVG.SkewY a) = multStd m (fromElements [1,tan(a*radiansPerDegree),0,1,0,0])
-applyTransformation m (SVG.TransformUnknown) = m
+applyTransformation m SVG.TransformUnknown = m

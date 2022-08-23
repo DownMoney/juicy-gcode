@@ -1,4 +1,4 @@
-resolver: lts-10.0
+resolver: lts-19.20
 allow-newer: true
 
 

@@ -28,7 +28,7 @@ toPoint :: Linear.V2 Double -> Point
 toPoint (Linear.V2 x y) = (x, y)
 
 fromPoint :: Point -> Linear.V2 Double
-fromPoint (x, y) = (Linear.V2 x y)
+fromPoint (x, y) = Linear.V2 x y
 
 -- TODO: em, percentage
 fromSvgNumber :: Int -> SVG.Number -> Double
@@ -62,13 +62,13 @@ docTransform dpi doc = multiply mirrorTransform (viewBoxTransform $ SVG._viewBox
 
         mirrorTransform = mirrorYTransform w h
 
-        (w, h) = (documentSize dpi doc)
+        (w, h) = documentSize dpi doc
 
 renderDoc :: Bool -> Int -> Double -> SVG.Document -> [GCodeOp]
 renderDoc generateBezier dpi resolution doc
     = stage2 $ renderTrees (docTransform dpi doc) (SVG._elements doc)
     where
-        pxresolution = (fromIntegral dpi) / 2.45 / 10 * resolution
+        pxresolution = fromIntegral dpi / 2.45 / 10 * resolution
 
         -- TODO: make it tail recursive
         stage2 :: [DrawOp] -> [GCodeOp]
@@ -78,15 +78,15 @@ renderDoc generateBezier dpi resolution doc
                 convert (DMoveTo p:ds) _ = GMoveTo p : convert ds (fromPoint p)
                 convert (DLineTo p:ds) _ = GLineTo p : convert ds (fromPoint p)
                 convert (DBezierTo c1 c2 p2:ds) cp
-                    | generateBezier 
-                        = [GBezierTo c1 c2 p2] ++ convert ds (fromPoint p2)
-                    | otherwise      
+                    | generateBezier
+                        = GBezierTo c1 c2 p2 : convert ds (fromPoint p2)
+                    | otherwise
                         = concatMap biarc2garc biarcs ++ convert ds (fromPoint p2)
                     where
                         biarcs = bezier2biarc (B.CubicBezier cp (fromPoint c1) (fromPoint c2) (fromPoint p2)) pxresolution
-                        biarc2garc (Left biarc) 
+                        biarc2garc (Left biarc)
                             = [arc2garc (BA._a1 biarc), arc2garc (BA._a2 biarc)]
-                        biarc2garc (Right (Linear.V2 x y)) 
+                        biarc2garc (Right (Linear.V2 x y))
                             = [GLineTo (x,y)]
                         arc2garc arc = GArcTo (toPoint (CA._c arc)) (toPoint (CA._p2 arc)) (CA.isClockwise arc)
 
@@ -263,4 +263,4 @@ renderDoc generateBezier dpi resolution doc
         renderTree _ _ = []
 
         renderTrees :: TransformationMatrix -> [SVG.Tree] -> [DrawOp]
-        renderTrees m es = concat $ map (renderTree m) es
+        renderTrees m = concatMap (renderTree m)
