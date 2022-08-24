@@ -13,11 +13,13 @@ import qualified Data.Configurator as C
 import Render ( renderDoc )
 import Data.GCode.Types ( GCode )
 import Types ( MachineSettings(MachineSettings) )
-import Data.GCode (ppGCodeCompact)
+import Data.GCode (ppGCodeCompact, (&))
 import Data.GCode.Parse ( parseOnlyGCode )
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Conversions (toText, FromText (fromText))
 import GCodeTransformations(toOrigin)
+import Data.GCode.RS274 (rapid)
+import Data.GCode.Generate (z, feed, xyz, (<#>), m, g)
 
 toGCode :: Text -> GCode
 toGCode t = case parseOnlyGCode $ encodeUtf8 (snoc t '\n') of
@@ -28,10 +30,10 @@ toGCode' :: String -> GCode
 toGCode' = toGCode . toText 
 
 defaultFlavor :: MachineSettings
-defaultFlavor =  MachineSettings (toGCode' "G17\nG90\nG0 Z1\nG0 X0 Y0") (toGCode' "G0 Z1") (toGCode' "G01 Z0 F10.00") (toGCode' "G00 Z1") 
+defaultFlavor =  MachineSettings [m <#> 3, g <#> 21, g <#> 90] [rapid & xyz 0.0 0.0 5.0, m <#> 2] [rapid & z (-0.125) & feed 2200.0] [rapid & z 5.000] 13000.0
 
 createFinalGcode :: MachineSettings -> GCode -> GCode
-createFinalGcode (MachineSettings begin end _ _) gops = begin ++ gops ++ end
+createFinalGcode (MachineSettings begin end _ _ _) gops = begin ++ gops ++ end
 
 data Options = Options { _svgfile        :: String
                        , _cfgfile        :: Maybe String
@@ -91,7 +93,8 @@ readFlavor cfgFile = do
   end          <- C.require cfg (pack "gcode.end")
   toolon       <- C.require cfg (pack "gcode.toolon")
   tooloff      <- C.require cfg (pack "gcode.tooloff")
-  return $ MachineSettings (toGCode begin) (toGCode end) (toGCode toolon) (toGCode tooloff)
+  travelFeed   <- C.require cfg (pack "gcode.travelFeed")
+  return $ MachineSettings (toGCode begin) (toGCode end) (toGCode toolon) (toGCode tooloff) travelFeed
 
 versionOption :: Parser (a -> a)
 versionOption = infoOption

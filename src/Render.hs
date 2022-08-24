@@ -16,7 +16,8 @@ import qualified BiArc as BA
 import qualified CubicBezier as B
 import Data.GCode.RS274 ( rapid, move, arcCW, arcCCW)
 import Data.GCode.Generate ( xy, ij, z, g, feed, (<#>) )
-import Data.GCode.Types ( (&), GCode, param, ParamDesignator (P))
+import Data.GCode.Types ( (&), GCode, param, ParamDesignator (P), Code)
+import Control.Lens ((^.), _1)
 
 mapTuple :: (a -> b) -> (a, a) -> (b, b)
 mapTuple f (a1, a2) = (f a1, f a2)
@@ -82,25 +83,27 @@ mmP (x,y) dpi = (mm x dpi, mm y dpi)
 -- toolOff :: GCode
 -- toolOff = [rapid & z 5.000]
 
-feedrate :: Double
-feedrate = 13000.0
 
 renderDoc :: Bool -> Int -> Double -> SVG.Document -> MachineSettings -> GCode
-renderDoc generateBezier dpi resolution doc (MachineSettings _ _ toolOn toolOff)
+renderDoc generateBezier dpi resolution doc (MachineSettings _ _ toolOn toolOff travelFeed)
     = stage2 $ renderTrees (docTransform dpi doc) (SVG._elements doc)
     where
         pxresolution = fromIntegral dpi / 2.45 / 10 * resolution
 
+        optCode :: Bool -> Code -> Code
+        optCode True c = feed travelFeed c
+        optCode False c = c
+
         -- TODO: make it tail recursive
         stage2 :: [DrawOp] -> GCode
-        stage2 dops = convert dops (Linear.V2 0 0) True
+        stage2 dops = convert dops (Linear.V2 0 0) True True
             where
-                convert [] _ _ = []
-                convert (DMoveTo p:ds) _ False = (rapid & uncurry xy (mmP p dpi)) : convert ds (fromPoint p) False
-                convert (DMoveTo p:ds) _ True = toolOff ++ [rapid & uncurry xy (mmP p dpi)] ++ convert ds (fromPoint p) False
-                convert gs cp False = toolOn ++ convert gs cp True
-                convert (DLineTo p:ds) _ True = move & uncurry xy (mmP p dpi) : convert ds (fromPoint p) True
-                convert (DBezierTo c1 c2 p2:ds) cp _
+                convert [] _ _ _ = []
+                convert (DMoveTo p:ds) _ False _ = rapid & uncurry xy (mmP p dpi) : convert ds (fromPoint p) False False
+                convert (DMoveTo p:ds) _ True _ = toolOff ++ [rapid & uncurry xy (mmP p dpi)] ++ convert ds (fromPoint p) False True
+                convert gs cp False _ = toolOn ++ convert gs cp True True
+                convert (DLineTo p:ds) _ True appendFeed = optCode appendFeed move & uncurry xy (mmP p dpi) : convert ds (fromPoint p) True False
+                convert (DBezierTo c1 c2 p2:ds) cp _ appendFeed
                     | generateBezier
                         = error "TODO: Bezier curves are undefined"
                         -- = do 
@@ -116,19 +119,19 @@ renderDoc generateBezier dpi resolution doc (MachineSettings _ _ toolOn toolOff)
 
                         --     g <#> 5 & ij i j & param P p & xy p2x p2y  : convert ds (fromPoint p2) True
                     | otherwise
-                        = fst biarcCodes ++ convert ds (fromPoint p2) True
+                        =  biarcCodes ^. _1 ++ convert ds (fromPoint p2) True False
                     where
                         biarcs = bezier2biarc (B.CubicBezier cp (fromPoint c1) (fromPoint c2) (fromPoint p2)) pxresolution
-                       
+
                         biarc2garc (Left biarc)
                             = [Left (BA._a1 biarc), Left (BA._a2 biarc)]
                         biarc2garc (Right (Linear.V2 x y))
                             = [Right (move & uncurry xy (mmP (x, y) dpi), (x, y))]
 
-                        biarcs2Code (codes, previousPoint) (Left arc) = do
+                        biarcs2Code (codes, previousPoint, shouldFeed) (Left arc) = do
                             let (code, nextPoint) = arc2garc previousPoint arc
-                            (codes ++ [code], nextPoint)
-                        biarcs2Code (codes, _) (Right (code, nextPoint)) = (codes ++ [code], nextPoint)
+                            (codes ++ [optCode shouldFeed code], nextPoint, False)
+                        biarcs2Code (codes, _, shouldFeed) (Right (code, nextPoint)) = (codes ++ [optCode shouldFeed code], nextPoint, False)
 
                         arc2garc previousPoint arc
                             -- initial implementation was mirrored
@@ -145,7 +148,7 @@ renderDoc generateBezier dpi resolution doc (MachineSettings _ _ toolOn toolOff)
 
                                 endPoint = (i, j)
 
-                        biarcCodes = foldl biarcs2Code ([], toPoint cp) $  concatMap biarc2garc biarcs
+                        biarcCodes = foldl biarcs2Code ([], toPoint cp, appendFeed) $  concatMap biarc2garc biarcs
 
         renderPathCommands :: Point -> Point -> Maybe Point -> [SVG.PathCommand] -> [DrawOp]
         renderPathCommands _ currentp _ (SVG.MoveTo origin (p:ps):ds)

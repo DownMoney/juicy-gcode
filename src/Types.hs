@@ -27,5 +27,6 @@ data MachineSettings = MachineSettings
   { _begin :: GCode,
     _end :: GCode,
     _toolon :: GCode,
-    _tooloff :: GCode
+    _tooloff :: GCode,
+    _travelFeed :: Double
   }
