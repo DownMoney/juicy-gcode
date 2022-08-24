@@ -17,6 +17,12 @@ import Data.GCode (ppGCodeCompact)
 import Data.GCode.Parse ( parseOnlyGCode )
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Conversions (toText, FromText (fromText))
+import GCodeTransformations(toOrigin)
+
+toGCode :: Text -> GCode
+toGCode t = case parseOnlyGCode $ encodeUtf8 (snoc t '\n') of
+  Left err -> error $ "failed to parse gcode:" ++ fromText t ++ " with error " ++ err
+  Right gcode -> gcode
 
 toGCode' :: String -> GCode
 toGCode' = toGCode . toText 
@@ -73,16 +79,10 @@ runWithOptions (Options svgFile mbCfg mbOut dpi resolution generateBezier) =
         mbDoc <- SVG.loadSvgFile svgFile
         flavor <- maybe (return defaultFlavor) readFlavor mbCfg
         case mbDoc of
-            (Just doc) -> writer (ppGCodeCompact $ createFinalGcode flavor $ renderDoc generateBezier dpi resolution doc flavor)
+            (Just doc) -> writer (ppGCodeCompact $ createFinalGcode flavor $ toOrigin $ renderDoc generateBezier dpi resolution doc flavor)
             Nothing    -> putStrLn "juicy-gcode: error during opening the SVG file"
     where
         writer = maybe putStr writeFile mbOut
-
-toGCode :: Text -> GCode
-toGCode t = case parseOnlyGCode $ encodeUtf8 (snoc t '\n') of
-  Left err -> error $ "failed to parse gcode:" ++ fromText t ++ " with error " ++ err
-  Right gcode -> gcode
-
 
 readFlavor :: FilePath -> IO MachineSettings
 readFlavor cfgFile = do
