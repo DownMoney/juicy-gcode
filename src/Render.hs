@@ -15,8 +15,8 @@ import qualified CircularArc as CA
 import qualified BiArc as BA
 import qualified CubicBezier as B
 import Data.GCode.RS274 ( rapid, move, arcCW, arcCCW)
-import Data.GCode.Generate ( xy, ij, z, feed )
-import Data.GCode.Types ( (&), GCode)
+import Data.GCode.Generate ( xy, ij, z, g, feed, (<#>) )
+import Data.GCode.Types ( (&), GCode, param, ParamDesignator (P))
 
 mapTuple :: (a -> b) -> (a, a) -> (b, b)
 mapTuple f (a1, a2) = (f a1, f a2)
@@ -103,8 +103,18 @@ renderDoc generateBezier dpi resolution doc (MachineSettings _ _ toolOn toolOff)
                 convert (DBezierTo c1 c2 p2:ds) cp _
                     | generateBezier
                         = error "TODO: Bezier curves are undefined"
-                        -- = g <#> 5 & ij 1.0 2.0 & xy 3.0 4.0  : convert ds (fromPoint p2) True
-                        -- = GBezierTo c1 c2 p2 : convert ds (fromPoint p2)
+                        -- = do 
+                        --     let (c1x, c1y) = mmP c1 dpi
+                        --     let (c2x, c2y) = mmP c2 dpi
+                        --     let (p2x, p2y) = mmP p2 dpi
+                        --     let (p1x, p1y) = mmP (toPoint cp) dpi
+
+                        --     let i = c1x - p1x
+                        --     let j = c1y - p1y
+                        --     let p = c2x - p2x
+                        --     let q = c2y - p2y
+
+                        --     g <#> 5 & ij i j & param P p & xy p2x p2y  : convert ds (fromPoint p2) True
                     | otherwise
                         = fst biarcCodes ++ convert ds (fromPoint p2) True
                     where
