@@ -66,6 +66,7 @@ jobs:
           paths:
             - ".stack-work"
             - "/root/.stack"
+            - "~/.stack"
       - store_artifacts: # upload build artifact for display in CircleCi
           path: ~/.local/bin/juicy-gcode
           destination: juicy-gcode
