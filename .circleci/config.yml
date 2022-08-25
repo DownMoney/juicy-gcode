@@ -64,7 +64,6 @@ jobs:
           key: juicy-gcode-mac-{{ checksum "juicy-gcode.cabal" }}
           paths:
             - ".stack-work"
-            - "/root/.stack"
             - "~/.stack"
       - store_artifacts: # upload build artifact for display in CircleCi
           path: ~/.local/bin/juicy-gcode
