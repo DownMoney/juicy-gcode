@@ -46,7 +46,7 @@ jobs:
       - restore_cache:
           name: Restore Cached Dependencies
           keys:
-            - juicy-gcode-{{ checksum "juicy-gcode.cabal" }}
+            - juicy-mac-gcode-{{ checksum "juicy-gcode.cabal" }}
       - run: brew install haskell-stack
       - run:
           name: Resolve/Update Dependencies
@@ -59,7 +59,7 @@ jobs:
           command: stack install
       - save_cache:
           name: Cache Dependencies
-          key: juicy-gcode-{{ checksum "juicy-gcode.cabal" }}
+          key: juicy-mac-gcode-{{ checksum "juicy-gcode.cabal" }}
           paths:
             - ".stack-work"
             - "/root/.stack"
