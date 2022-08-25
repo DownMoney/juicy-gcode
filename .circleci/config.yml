@@ -41,13 +41,16 @@ jobs:
       xcode: "12.5.1"
     environment:
       HOMEBREW_NO_INSTALL_CLEANUP: 1
+      HOMEBREW_NO_AUTO_UPDATE: 1
     steps:
       - checkout
       - restore_cache:
           name: Restore Cached Dependencies
           keys:
             - juicy-mac-gcode-{{ checksum "juicy-gcode.cabal" }}
-      - run: brew install haskell-stack
+      - run:
+          name: Install Haskell and Stack
+          command: brew install haskell-stack
       - run:
           name: Resolve/Update Dependencies
           command: stack setup
@@ -65,7 +68,7 @@ jobs:
             - "/root/.stack"
       - store_artifacts: # upload build artifact for display in CircleCi
           path: ~/.local/bin/juicy-gcode
-          destination: juicy-gcode-macos
+          destination: juicy-gcode
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
 workflows:
