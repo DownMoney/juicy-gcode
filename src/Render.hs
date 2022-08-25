@@ -15,8 +15,8 @@ import qualified CircularArc as CA
 import qualified BiArc as BA
 import qualified CubicBezier as B
 import Data.GCode.RS274 ( rapid, move, arcCW, arcCCW)
-import Data.GCode.Generate ( xy, ij, z, g, feed, (<#>) )
-import Data.GCode.Types ( (&), GCode, param, ParamDesignator (P), Code)
+import Data.GCode.Generate ( xy, ij, feed )
+import Data.GCode.Types ( (&), GCode, Code)
 import Control.Lens ((^.), _1)
 
 mapTuple :: (a -> b) -> (a, a) -> (b, b)
@@ -76,13 +76,6 @@ mm px dpi = (px * 2.54 * 10) / dd dpi
 
 mmP :: Point -> Int -> Point
 mmP (x,y) dpi = (mm x dpi, mm y dpi)
-
--- toolOn :: GCode
--- toolOn = [rapid & z (-0.125) & feed 2200.0]
-
--- toolOff :: GCode
--- toolOff = [rapid & z 5.000]
-
 
 renderDoc :: Bool -> Int -> Double -> SVG.Document -> MachineSettings -> GCode
 renderDoc generateBezier dpi resolution doc (MachineSettings _ _ toolOn toolOff travelFeed)
