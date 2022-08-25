@@ -77,9 +77,9 @@ mm px dpi = (px * 2.54 * 10) / dd dpi
 mmP :: Point -> Int -> Point
 mmP (x,y) dpi = (mm x dpi, mm y dpi)
 
-renderDoc :: Bool -> Int -> Double -> SVG.Document -> MachineSettings -> GCode
-renderDoc generateBezier dpi resolution doc (MachineSettings _ _ toolOn toolOff travelFeed)
-    = stage2 $ renderTrees (docTransform dpi doc) (SVG._elements doc)
+renderDoc :: Bool -> Int -> Double -> SVG.Document -> MachineSettings -> TransformationMatrix -> GCode
+renderDoc generateBezier dpi resolution doc (MachineSettings _ _ toolOn toolOff travelFeed) additionalTransforms
+    = stage2 $ renderTrees (multiply additionalTransforms $ docTransform dpi doc) (SVG._elements doc)
     where
         pxresolution = fromIntegral dpi / 2.45 / 10 * resolution
 

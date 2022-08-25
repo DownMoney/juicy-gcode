@@ -20,6 +20,7 @@ import Data.Text.Conversions (toText, FromText (fromText))
 import GCodeTransformations(toOrigin)
 import Data.GCode.RS274 (rapid)
 import Data.GCode.Generate (z, feed, xyz, (<#>), m, g)
+import Transformation (scaleTransform)
 
 toGCode :: Text -> GCode
 toGCode t = case parseOnlyGCode $ encodeUtf8 (snoc t '\n') of
@@ -41,6 +42,7 @@ data Options = Options { _svgfile        :: String
                        , _dpi            :: Int
                        , _resolution     :: Double
                        , _generateBezier :: Bool
+                       , _scale :: (Double, Double)
                        }
 
 options :: Parser Options
@@ -74,14 +76,24 @@ options = Options
       ( long "generate-bezier"
       <> short 'b'
       <> help "Generate bezier curves (G5) instead of arcs (G2,G3)" )
+  <*> option auto
+      (
+        long "scale"
+        <> value (1.0, 1.0)
+        <> short 's'
+        <> metavar "SCALE"
+        <> help "Scale the input file by (x,y)"
+      )
 
 runWithOptions :: Options -> IO ()
-runWithOptions (Options svgFile mbCfg mbOut dpi resolution generateBezier) =
+runWithOptions (Options svgFile mbCfg mbOut dpi resolution generateBezier scale) =
     do
         mbDoc <- SVG.loadSvgFile svgFile
         flavor <- maybe (return defaultFlavor) readFlavor mbCfg
         case mbDoc of
-            (Just doc) -> writer (ppGCodeCompact $ createFinalGcode flavor $ toOrigin $ renderDoc generateBezier dpi resolution doc flavor)
+            (Just doc) -> do
+              let additionalTransforms = uncurry scaleTransform scale
+              writer (ppGCodeCompact $ createFinalGcode flavor $ toOrigin $ renderDoc generateBezier dpi resolution doc flavor additionalTransforms)
             Nothing    -> putStrLn "juicy-gcode: error during opening the SVG file"
     where
         writer = maybe putStr writeFile mbOut
